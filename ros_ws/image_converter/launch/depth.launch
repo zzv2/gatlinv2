@@ -1,0 +1,3 @@
+<launch>
+	<node name="republish" type="republish" pkg="image_transport" output="screen" args="raw in:=/camera/depth_registered/image_raw compressedDepth out:=/camera/depth_compressed" />
+</launch>
