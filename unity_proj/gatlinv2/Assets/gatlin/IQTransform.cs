@@ -3,30 +3,21 @@ using System.Collections;
 
 public class IQTransform : MonoBehaviour {
 	
-	public bool useQCAR = true, gyroActive = false;
+	private bool gyroActive = false, tiltActive = false;
 
-	public bool toPositionCamera, snapToFloor = true; 
-	
-	//these will be set by posters, and added and set as position for ARCamera
-	public Vector3 GamePosition, IQVector;
-	private Vector3 IQPosition, bufferPosition;
-	public Quaternion IQRotation, GameRotation;
-	private Quaternion lastGyro; 
+	private const float ROBOTACCELERATION = 1f, TOPVELOCITY = 1f; //absolute value limits
+	private float acceleration = 0, velocity = 0, yAxisRotationVelocity = 0; //estimation of current acceleration and velocity of robot
 
-	//private CircularPastList<Vector3> pastIQPositions;
-	
-	//private float pastHeight = 0;
+	private float xAxisTranslationVelocity = 0;
+
+	private Quaternion worldRotation, pilotBaseRotation, tiltBaseRotation; 
+	private Quaternion robotRotation, userRotation, lastUserRotation; //robot will 
+	//private Vector3 robotLocation, userLocation;
+
+	private bool pilotMode = true;
 	
 	public Joystick3D joystick;
-	public float joystickVelocity = 1, freq = 0;
-	
-	//for compass and gyroscope
-	private double lastCompassUpdateTime;
-	private Quaternion correction, targetCorrection;
-	
-	//private GUIManager guiManager;
-	
-	//public ButtonManager redButtonManager; //used for balancing during shot!
+	//public float joystickVelocity = 1, freq = 0;
 	
 	void Start () {
 		Input.gyro.enabled = true; //on disable set these to false to save battery
@@ -40,9 +31,13 @@ public class IQTransform : MonoBehaviour {
 		
 		//QCARRenderer.Instance.DrawVideoBackground = false;
 
-		GameRotation = Quaternion.identity;
-		IQRotation = Quaternion.identity;
-		lastGyro = Quaternion.identity;
+		worldRotation = Quaternion.identity;
+		pilotBaseRotation = Quaternion.identity;
+		tiltBaseRotation = Quaternion.identity;
+
+		userRotation = Quaternion.identity;
+		lastUserRotation = Quaternion.identity;
+
 	}
 	
 	void OnEnable() {
@@ -67,127 +62,120 @@ public class IQTransform : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
-		
-		Vector3 newIQPosition = IQVector + bufferPosition;
-		
-		float deltaheight = 0;
-		
-		if (newIQPosition.y != IQPosition.y) 
-			deltaheight += (newIQPosition.y - IQPosition.y);
-		
-		IQPosition = newIQPosition; //this is the only mandatory thing in this section
 
+		//Add rotation contributions to userRotation
+		// several options for robot tracking
+		//1. Estimate Robot Pose and continue to rotate towards that
+		//2. SIMPLER add acceleration of last frame to current acceleration velocity understanding
+		//3. incorporate data from robot to understand how it is turning
 
-		Quaternion newIQRotation = ComplementaryFilter(); //YGyroRotation();
+		Quaternion newWorldRotation = GetRealWorldRotation(); 
+
+		//Gyro data is combined with rotation here
 		if (gyroActive) {
-			//AToB = Inverse(A) * B;
-			Quaternion delta = Quaternion.Inverse(lastGyro) * newIQRotation;
 
+			Quaternion delta;
+			if (pilotMode) {
+				delta = Quaternion.Inverse(pilotBaseRotation) * newWorldRotation; //AToB = Inverse(A) * B;
+				delta = Quaternion.Slerp ( Quaternion.identity, delta, .08f);
+			} else
+				delta = Quaternion.Inverse(worldRotation) * newWorldRotation; //AToB = Inverse(A) * B;
+			
+
+			//find change in direction from vector pointing "forward" (Vector3(0, 0, 1))
 			Vector3 direT = delta * Vector3.forward;
 			direT = new Vector3(direT.x, 0, Mathf.Sqrt(1 - direT.x * direT.x)); //-direT.x
-			
+		
 			delta = Quaternion.LookRotation(direT, Vector3.up);
 
-			//IQRotation = IQRotation * delta;
-			IQRotation = GameRotation * delta;
-			// =  tempGameRotation;
+			//update userRotation by adding delta rotation to it
+			userRotation = userRotation * delta; 
 		}
-		
-		// * IQRotation;
-		updateJoystick ();
 
-		//transform.rotation = IQRotation;
-		//transform.position = IQPosition + GamePosition;
+		if (tiltActive) {
+			
+			Quaternion delta;
 
-		lastGyro = newIQRotation;
+			delta = Quaternion.Inverse(tiltBaseRotation) * newWorldRotation; //AToB = Inverse(A) * B;
+			//delta = Quaternion.Slerp ( Quaternion.identity, delta, .08f);
+
+			//find change in direction from vector pointing "forward" (Vector3(0, 0, 1))
+			Vector3 direT = delta * Vector3.forward;
+			//direT = new Vector3(0, direT.y, Mathf.Sqrt(1 - direT.y * direT.y)); //-direT.x
+			
+			//delta = Quaternion.LookRotation(direT, Vector3.up);
+
+			float sign = 1;
+			if (direT.y < 0)
+				sign = -1;
+
+			direT.y = sign * (direT.y * direT.y);
+
+			xAxisTranslationVelocity = -10f * direT.y; //20 degree is 1
+		}
+
+		//All joystick rotation contributions
+		if (joystick.position.x != 0) {
+			//rotation rate fed to turtle bot, may be wrong
+			float angularVelocityTemp = Time.deltaTime * joystick.position.x * 2 * 180 / Mathf.PI;
+			userRotation = userRotation * Quaternion.Euler ( 0f, angularVelocityTemp, 0f);
+		}
+
+		//NOTE: finger screen drag rotation is called by input manager and it calls fingerRotation()
+
+		worldRotation = newWorldRotation;
 	}
 
 	void LateUpdate() {
 		//sums all fingers and gyro rotation into new transform.rotation.
 		//find delta between of rotation and rotate something to get a constant
 		//AToB = Inverse(A) * B;
-		Quaternion delta = Quaternion.Inverse ( GameRotation) * IQRotation; //change of rotation in degrees about y axis
+		Quaternion delta = Quaternion.Inverse (lastUserRotation) * userRotation; //change of rotation in degrees about y axis
 		Vector3 dire = delta * Vector3.forward;
 
 		// y= 0pp, x = adj
 		float rads = Mathf.Atan2 (dire.x, dire.z);
+		yAxisRotationVelocity = -(rads / Time.deltaTime); // divide by 2 pi
 
+		lastUserRotation = userRotation;
+		transform.rotation = userRotation;
+		transform.position += transform.rotation * Vector3.forward * Time.deltaTime * (joystick.position.y + xAxisTranslationVelocity);
+	}
 
-		freq = (rads / Time.deltaTime); // divide by 2 pi
+	//rotates left or right based on rotation
+	public float GetYRotationVelocity() {
+		return yAxisRotationVelocity;
+	}
 
-		GameRotation = IQRotation;
+	//forward or backward based on tilt, x axis rotation
+	public float GetXTranslationVelocity() {
+		return xAxisTranslationVelocity;
+	}
+
+	public void fingerRotation (Vector2 drag) {
+		userRotation = Quaternion.Euler (0, 0.25f*drag.x, 0) * userRotation;
 	}
 
 	public void toggleGyroOn(bool ga) {
+		if (ga && pilotMode && ga != gyroActive) 
+			pilotBaseRotation = worldRotation;
+
 		gyroActive = ga;
 	}
-	
-	public void foundPoster(Vector3 firstIQV, bool isFloor) {
-		IQVector = firstIQV;
-		bufferPosition = -IQVector;
-		if (isFloor && snapToFloor) {
-			GamePosition.y = IQVector.y;
-		}
+
+	public void toggleTiltOn(bool ga) {
+		if (ga && ga != tiltActive) 
+			tiltBaseRotation = worldRotation;
+
+		if (!ga)
+			xAxisTranslationVelocity = 0;
+
+		tiltActive = ga;
 	}
 
-
-	
-	public void lostPoster() {
-		//GamePosition += pastIQPositions.getOldest();
-		IQPosition = Vector3.zero;
-		IQVector = Vector3.zero;
-		bufferPosition = Vector3.zero;
-		//pastIQPositions.reset ();
-	}
-	
-	private void updateJoystick() {
-		if (joystick.position.x != 0 || joystick.position.y != 0) {
-			Vector3 forvec = transform.rotation * Vector3.forward;
-			Vector3 upvec;//this needs to be changed if using right hand glove
-			
-			Vector2 normjoy = joystick.position;
-			/*if (!guiManager.left) {
-				upvec = transform.rotation * Vector3.down; 
-				normjoy = - normjoy;
-			} else{*/
-			upvec = transform.rotation * Vector3.up; 
-			//}
-			
-			
-			if (normjoy.magnitude > 1) normjoy.Normalize();
-			
-			
-			Vector3 transvec = new Vector3(normjoy.x,0,normjoy.y);; // if left, if right negate both
-			float angle = 0;
-			
-			if (Mathf.Abs(forvec.y) <= Mathf.Abs(upvec.y) || Mathf.Abs(forvec.y) < .6f) {
-				//use forvec
-				forvec.y = 0;
-				angle = Vector3.Angle (Vector3.forward, forvec);
-				if (forvec.x < 0) angle = -angle;
-				
-			} else {
-				//use upvec because I want Y component to be small
-				upvec.y = 0;
-				//get rotation from forward, (0,0,1), to upvec, then 
-				angle = Vector3.Angle (Vector3.forward, upvec);
-				if (upvec.x < 0) angle = -angle;
-			}
-			GamePosition += (Quaternion.Euler (0, angle, 0) * transvec * Time.deltaTime * joystickVelocity);
-		}
-	}
-
-	private Quaternion YGyroRotation() {
-		Quaternion t = ComplementaryFilter (); //fromto
-		Vector3 direT = t * Vector3.forward;
-		direT = new Vector3(-direT.x, 0, Mathf.Sqrt(1 - direT.x * direT.x)); //-direT.x
-
-		return Quaternion.LookRotation(direT, Vector3.up);
-	}
-	
-	private Quaternion ComplementaryFilter() {
-		
+	//Returns a quaternion that can represent the phone's current rotation relative to ground. 
+	//will rotate properly in all direction too, but will start facing a random direction possibly
+	private Quaternion GetRealWorldRotation() {
 		return Quaternion.Euler (90, 0, 0) * Input.gyro.attitude * Quaternion.Euler(0, 0, 180);
-		
 	}
 }

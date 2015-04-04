@@ -25,7 +25,6 @@ public class ROSNetworker : MonoBehaviour  {
 
 	public IQTransform iqtransform;
 	public Joystick3D joystick;
-	public Renderer videoFeed;
 
 	private ROSBridgeWebSocketConnection ros = null;	
 	//private Boolean _useJoysticks;
@@ -36,14 +35,11 @@ public class ROSNetworker : MonoBehaviour  {
 	// the critical thing here is to define our subscribers, publishers and service response handlers
 	void Start () {
 		ros = new ROSBridgeWebSocketConnection (RosBridgeAddress, RosBridgePort);
-		//ros.AddSubscriber (typeof(Turtle1ColorSensor));
+
 		ros.AddPublisher (typeof(TurtlebotTeleop));
 		//ros.AddSubscriber (typeof(Turtle1Pose));
 
-
-		//ros.AddServiceResponse (typeof(Turtle1ServiceResponse));
 		ros.Connect ();
-		//ros.CallService ("/turtle1/set_pen", "{\"off\": 0}");
 	}
 
 	/*IEnumerator CheckWebServer() {
@@ -70,8 +66,8 @@ public class ROSNetworker : MonoBehaviour  {
 	// that are sent to the ROS world, which drives the robot which ...
 	void Update () {
 		
-		float linear = 2f * joystick.position.y;
-		float angular = -2f * joystick.position.x + iqtransform.freq * .5f;
+		float linear = 2f * joystick.position.y + iqtransform.GetXTranslationVelocity();
+		float angular = iqtransform.GetYRotationVelocity();
 		
 		TwistMsg msg = new TwistMsg (new Vector3Msg(linear, 0.0, 0.0), new Vector3Msg(0.0, 0.0, angular));
 		

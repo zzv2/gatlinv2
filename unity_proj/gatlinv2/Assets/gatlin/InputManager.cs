@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using System.Collections;
 
 public class InputManager : MonoBehaviour {
@@ -7,15 +8,21 @@ public class InputManager : MonoBehaviour {
 	protected int joystickID = -7777;
 	Camera thiscamera;
 
+	private Vector2 finalDelta;
+
 	// Use this for initialization
 	void Start () {
 		thiscamera = GetComponent<Camera>();
+		finalDelta = Vector2.zero;
 	}
 	
 	// Update is called once per frame
 	void Update () {
 		bool joystickActive = false;
 		bool gyroActive = false;
+		bool tiltActive = false;
+
+		Vector2 deltaAcc = Vector2.zero;
 		
 		foreach (Touch t in Input.touches) {
 			Vector3 v  = thiscamera.ScreenToWorldPoint(new Vector3(t.position.x, t.position.y, 1f));
@@ -36,18 +43,35 @@ public class InputManager : MonoBehaviour {
 					joystick.Hit(v);
 				} else if (hit.collider.name == "gyro") {
 					gyroActive = true;
+				} else if (hit.collider.name == "tilt") {
+					tiltActive = true;
 				}
 			} else {
-				iqtransform.transform.rotation = Quaternion.Euler (0, 0.25f*t.deltaPosition.x, 0) * iqtransform.transform.rotation;
+				deltaAcc+= t.deltaPosition;
 			}
 		}
-		
+
+		if (finalDelta.x != 0 || finalDelta.y != 0 || deltaAcc.x != 0 || deltaAcc.y != 0) {
+
+			//add all finger movements to final delta
+			finalDelta = finalDelta + deltaAcc;
+
+			//take set amount from final delta and rotate that much
+			Vector2 thisTouch = Vector2.MoveTowards (Vector2.zero, finalDelta, 20); // in pixels??
+			finalDelta = finalDelta - thisTouch;
+
+			iqtransform.fingerRotation (thisTouch);
+		} else {
+			finalDelta = Vector2.zero;
+		}
+
 		if (!joystickActive) {
 			joystickID = -7777;
 			joystick.LerpHome();
 		}
 
 		iqtransform.toggleGyroOn(gyroActive);
+		iqtransform.toggleTiltOn(tiltActive);
 		
 	}
 
