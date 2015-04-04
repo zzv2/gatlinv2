@@ -89,13 +89,15 @@ public class IQTransform : MonoBehaviour {
 			delta = Quaternion.LookRotation(direT, Vector3.up);
 
 			//IQRotation = IQRotation * delta;
-			transform.rotation = GameRotation * delta;
+			IQRotation = GameRotation * delta;
 			// =  tempGameRotation;
 		}
 		
 		// * IQRotation;
 		updateJoystick ();
-		transform.position = IQPosition + GamePosition;
+
+		//transform.rotation = IQRotation;
+		//transform.position = IQPosition + GamePosition;
 
 		lastGyro = newIQRotation;
 	}
@@ -104,7 +106,7 @@ public class IQTransform : MonoBehaviour {
 		//sums all fingers and gyro rotation into new transform.rotation.
 		//find delta between of rotation and rotate something to get a constant
 		//AToB = Inverse(A) * B;
-		Quaternion delta = Quaternion.Inverse ( GameRotation) * transform.rotation; //change of rotation in degrees about y axis
+		Quaternion delta = Quaternion.Inverse ( GameRotation) * IQRotation; //change of rotation in degrees about y axis
 		Vector3 dire = delta * Vector3.forward;
 
 		// y= 0pp, x = adj
@@ -113,7 +115,7 @@ public class IQTransform : MonoBehaviour {
 
 		freq = (rads / Time.deltaTime); // divide by 2 pi
 
-		GameRotation = transform.rotation;
+		GameRotation = IQRotation;
 	}
 
 	public void toggleGyroOn(bool ga) {

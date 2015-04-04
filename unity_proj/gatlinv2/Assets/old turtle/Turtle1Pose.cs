@@ -32,7 +32,7 @@ public class Turtle1Pose : ROSBridgeSubscriber {
 	}
 	
 	public new static void CallBack(ROSBridgeMsg msg) {
-		GameObject robot = GameObject.Find ("Dalek");
+		GameObject robot = GameObject.Find ("Main Camera");
 		if (robot == null)
 			Debug.Log ("Can't find the robot???");
 		else {
