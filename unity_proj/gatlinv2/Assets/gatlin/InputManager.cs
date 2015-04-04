@@ -2,11 +2,14 @@
 using UnityEngine;
 using System.Collections;
 
+//this is a mess, but used to get the input working. I didn't want to iterate throuch touches a bunch or do gui in separate places
+
 public class InputManager : MonoBehaviour {
 	public IQTransform iqtransform;
 	public Joystick3D joystick;
-	protected int joystickID = -7777;
+	private int joystickID = -7777;
 	Camera thiscamera;
+	public Camera thirdCamera, firstCamera;
 
 	private Vector2 finalDelta;
 
@@ -20,6 +23,8 @@ public class InputManager : MonoBehaviour {
 	void Update () {
 		bool joystickActive = false;
 		bool gyroActive = false;
+		bool tiltActive = false;
+		bool thirdActive = false;
 
 		Vector2 deltaAcc = Vector2.zero;
 		
@@ -42,6 +47,10 @@ public class InputManager : MonoBehaviour {
 					joystick.Hit(v);
 				} else if (hit.collider.name == "gyro") {
 					gyroActive = true;
+				} else if (hit.collider.name == "tilt") {
+					tiltActive = true;
+				} else if (hit.collider.name == "third") {
+					thirdActive = true;
 				}
 			} else {
 				deltaAcc+= t.deltaPosition;
@@ -51,15 +60,20 @@ public class InputManager : MonoBehaviour {
 		if (finalDelta.x != 0 || finalDelta.y != 0 || deltaAcc.x != 0 || deltaAcc.y != 0) {
 
 			//add all finger movements to final delta
-			finalDelta += deltaAcc;
+			finalDelta = finalDelta + deltaAcc;
 
 			//take set amount from final delta and rotate that much
-			Vector2 thisTouch = Vector2.MoveTowards (Vector2.zero, finalDelta, 30); // in pixels??
-			finalDelta -= thisTouch;
+			Vector2 thisTouch = Vector2.MoveTowards (Vector2.zero, finalDelta, 20); // in pixels??
+			finalDelta = finalDelta - thisTouch;
 
 			iqtransform.fingerRotation (thisTouch);
 		} else {
 			finalDelta = Vector2.zero;
+		}
+
+		//if the third person camera should be the value of the first person value, you know you need to change it
+		if (thirdActive == firstCamera.enabled) {
+			toggleThirdPersonCameraOn(thirdActive);
 		}
 
 		if (!joystickActive) {
@@ -68,7 +82,15 @@ public class InputManager : MonoBehaviour {
 		}
 
 		iqtransform.toggleGyroOn(gyroActive);
+		iqtransform.toggleTiltOn(tiltActive);
 		
+	}
+
+	private void toggleThirdPersonCameraOn(bool t) {
+
+			firstCamera.enabled = !t;
+			thirdCamera.gameObject.SetActive(t);
+	
 	}
 
 	/*Vector3 projectRay(Vector3 p) {
