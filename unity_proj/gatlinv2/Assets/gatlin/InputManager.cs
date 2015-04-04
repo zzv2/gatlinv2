@@ -20,7 +20,6 @@ public class InputManager : MonoBehaviour {
 	void Update () {
 		bool joystickActive = false;
 		bool gyroActive = false;
-		bool tiltActive = false;
 
 		Vector2 deltaAcc = Vector2.zero;
 		
@@ -43,8 +42,6 @@ public class InputManager : MonoBehaviour {
 					joystick.Hit(v);
 				} else if (hit.collider.name == "gyro") {
 					gyroActive = true;
-				} else if (hit.collider.name == "tilt") {
-					tiltActive = true;
 				}
 			} else {
 				deltaAcc+= t.deltaPosition;
@@ -54,11 +51,11 @@ public class InputManager : MonoBehaviour {
 		if (finalDelta.x != 0 || finalDelta.y != 0 || deltaAcc.x != 0 || deltaAcc.y != 0) {
 
 			//add all finger movements to final delta
-			finalDelta = finalDelta + deltaAcc;
+			finalDelta += deltaAcc;
 
 			//take set amount from final delta and rotate that much
-			Vector2 thisTouch = Vector2.MoveTowards (Vector2.zero, finalDelta, 20); // in pixels??
-			finalDelta = finalDelta - thisTouch;
+			Vector2 thisTouch = Vector2.MoveTowards (Vector2.zero, finalDelta, 30); // in pixels??
+			finalDelta -= thisTouch;
 
 			iqtransform.fingerRotation (thisTouch);
 		} else {
@@ -71,7 +68,6 @@ public class InputManager : MonoBehaviour {
 		}
 
 		iqtransform.toggleGyroOn(gyroActive);
-		iqtransform.toggleTiltOn(tiltActive);
 		
 	}
 

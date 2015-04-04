@@ -66,7 +66,7 @@ public class ROSNetworker : MonoBehaviour  {
 	// that are sent to the ROS world, which drives the robot which ...
 	void Update () {
 		
-		float linear = 2f * joystick.position.y + iqtransform.GetXTranslationVelocity();
+		float linear = 2f * joystick.position.y;
 		float angular = iqtransform.GetYRotationVelocity();
 		
 		TwistMsg msg = new TwistMsg (new Vector3Msg(linear, 0.0, 0.0), new Vector3Msg(0.0, 0.0, angular));

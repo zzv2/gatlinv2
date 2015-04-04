@@ -3,14 +3,12 @@ using System.Collections;
 
 public class IQTransform : MonoBehaviour {
 	
-	private bool gyroActive = false, tiltActive = false;
+	public bool useQCAR = true, gyroActive = false;
 
 	private const float ROBOTACCELERATION = 1f, TOPVELOCITY = 1f; //absolute value limits
 	private float acceleration = 0, velocity = 0, yAxisRotationVelocity = 0; //estimation of current acceleration and velocity of robot
 
-	private float xAxisTranslationVelocity = 0;
-
-	private Quaternion worldRotation, pilotBaseRotation, tiltBaseRotation; 
+	private Quaternion worldRotation, pilotBaseRotation; 
 	private Quaternion robotRotation, userRotation, lastUserRotation; //robot will 
 	//private Vector3 robotLocation, userLocation;
 
@@ -33,7 +31,6 @@ public class IQTransform : MonoBehaviour {
 
 		worldRotation = Quaternion.identity;
 		pilotBaseRotation = Quaternion.identity;
-		tiltBaseRotation = Quaternion.identity;
 
 		userRotation = Quaternion.identity;
 		lastUserRotation = Quaternion.identity;
@@ -92,28 +89,6 @@ public class IQTransform : MonoBehaviour {
 			userRotation = userRotation * delta; 
 		}
 
-		if (tiltActive) {
-			
-			Quaternion delta;
-
-			delta = Quaternion.Inverse(tiltBaseRotation) * newWorldRotation; //AToB = Inverse(A) * B;
-			//delta = Quaternion.Slerp ( Quaternion.identity, delta, .08f);
-
-			//find change in direction from vector pointing "forward" (Vector3(0, 0, 1))
-			Vector3 direT = delta * Vector3.forward;
-			//direT = new Vector3(0, direT.y, Mathf.Sqrt(1 - direT.y * direT.y)); //-direT.x
-			
-			//delta = Quaternion.LookRotation(direT, Vector3.up);
-
-			float sign = 1;
-			if (direT.y < 0)
-				sign = -1;
-
-			direT.y = sign * (direT.y * direT.y);
-
-			xAxisTranslationVelocity = -10f * direT.y; //20 degree is 1
-		}
-
 		//All joystick rotation contributions
 		if (joystick.position.x != 0) {
 			//rotation rate fed to turtle bot, may be wrong
@@ -139,17 +114,11 @@ public class IQTransform : MonoBehaviour {
 
 		lastUserRotation = userRotation;
 		transform.rotation = userRotation;
-		transform.position += transform.rotation * Vector3.forward * Time.deltaTime * (joystick.position.y + xAxisTranslationVelocity);
+		transform.position += transform.rotation * Vector3.forward * Time.deltaTime * joystick.position.y;
 	}
 
-	//rotates left or right based on rotation
 	public float GetYRotationVelocity() {
 		return yAxisRotationVelocity;
-	}
-
-	//forward or backward based on tilt, x axis rotation
-	public float GetXTranslationVelocity() {
-		return xAxisTranslationVelocity;
 	}
 
 	public void fingerRotation (Vector2 drag) {
@@ -157,20 +126,12 @@ public class IQTransform : MonoBehaviour {
 	}
 
 	public void toggleGyroOn(bool ga) {
+
+
 		if (ga && pilotMode && ga != gyroActive) 
 			pilotBaseRotation = worldRotation;
 
 		gyroActive = ga;
-	}
-
-	public void toggleTiltOn(bool ga) {
-		if (ga && ga != tiltActive) 
-			tiltBaseRotation = worldRotation;
-
-		if (!ga)
-			xAxisTranslationVelocity = 0;
-
-		tiltActive = ga;
 	}
 
 	//Returns a quaternion that can represent the phone's current rotation relative to ground. 
